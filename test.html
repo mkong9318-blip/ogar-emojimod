@@ -1,0 +1,524 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>表情模組測試</title>
+<style>
+:root{color-scheme:dark;--bg:#070b1a;--panel:rgba(13,19,42,.96);--glass:rgba(148,168,255,.06);--glass2:rgba(148,168,255,.14);--line:rgba(148,168,255,.2);
+--text:#e8ecf8;--sub:#9aa6c8;--dim:#5f6b8f;--title:#c7d2fe;--accent:#7aa2ff;--accent2:#b48cff;--teal:#6ee7d8;--warn:#fca5a5}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font:13px/1.45 "Noto Sans TC",Ubuntu,system-ui,sans-serif;overflow:hidden}
+*{box-sizing:border-box}
+#game{position:fixed;left:0;top:0;width:100%;height:100%;display:block;cursor:crosshair}
+#hud{position:fixed;left:12px;top:10px;z-index:5;pointer-events:none;text-shadow:0 1px 3px #000}
+#hud b{font-size:15px;color:var(--title)}
+#hud .keys{color:var(--sub);margin-top:2px}
+#hud .keys kbd{display:inline-block;padding:0 5px;margin:0 2px;border:1px solid var(--line);border-radius:4px;background:rgba(0,0,0,.35);color:var(--text);font:12px/18px Ubuntu,monospace}
+#hud .mode{margin-top:4px;color:var(--teal)}
+#toast{position:fixed;left:50%;top:14px;transform:translateX(-50%);z-index:30;padding:6px 14px;border-radius:999px;background:rgba(13,19,42,.92);border:1px solid var(--line);color:var(--text);opacity:0;transition:opacity .2s;pointer-events:none}
+#toast.on{opacity:1}
+#toast.warn{color:var(--warn);border-color:rgba(252,165,165,.4)}
+#side{position:fixed;top:0;right:0;bottom:0;width:348px;max-width:100vw;background:var(--panel);border-left:1px solid var(--line);overflow-y:auto;padding:12px 14px 28px;z-index:20}
+#side.collapsed{transform:translateX(100%)}
+#sideBtn{position:fixed;top:10px;right:358px;z-index:21}
+#side.collapsed + #sideBtn{right:10px}
+h2{font-size:13px;color:var(--title);margin:16px 0 8px;padding-bottom:5px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:6px}
+h2:first-child{margin-top:2px}
+h2 small{font-weight:400;color:var(--dim);margin-left:auto}
+.row{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}
+button.b{appearance:none;border:1px solid var(--line);background:var(--glass);color:var(--text);border-radius:8px;padding:6px 10px;font:inherit;cursor:pointer;line-height:1.25}
+button.b:hover{background:var(--glass2);border-color:var(--accent)}
+button.b.primary{background:linear-gradient(90deg,#7aa2ff,#b48cff);color:#0b1026;border:0;font-weight:700}
+button.b.sm{padding:3px 8px;font-size:12px}
+.ctl{display:grid;grid-template-columns:118px 1fr 58px;align-items:center;gap:6px;margin:5px 0}
+.ctl label{color:var(--sub)}
+.ctl output{text-align:right;color:var(--text);font:12px Ubuntu,monospace}
+.ctl input[type=range]{width:100%;accent-color:var(--accent)}
+.ctl select{grid-column:2 / 4;background:rgba(0,0,0,.3);color:var(--text);border:1px solid var(--line);border-radius:6px;padding:4px 6px;font:inherit}
+.chk{display:flex;align-items:center;gap:7px;margin:5px 0;color:var(--sub);cursor:pointer}
+.chk input{accent-color:var(--accent);margin:0}
+.note{color:var(--dim);font-size:12px;margin:4px 0}
+#graph{width:100%;height:132px;display:block;background:rgba(0,0,0,.25);border:1px solid var(--line);border-radius:8px}
+.legend{display:flex;gap:12px;font-size:12px;color:var(--sub);margin-top:5px}
+.legend i{display:inline-block;width:14px;height:3px;border-radius:2px;vertical-align:middle;margin-right:4px}
+#cfgOut{width:100%;height:150px;margin-top:6px;background:rgba(0,0,0,.35);color:var(--teal);border:1px solid var(--line);border-radius:8px;font:11px/1.4 Ubuntu,monospace;padding:6px;resize:vertical}
+#log{display:flex;flex-direction:column;gap:6px;max-height:300px;overflow-y:auto}
+.lg{border:1px solid var(--line);border-radius:8px;padding:5px 8px;background:var(--glass)}
+.lg.out{border-left:3px solid var(--accent)}
+.lg.in{border-left:3px solid var(--teal)}
+.lg.skip{border-left:3px solid var(--dim);opacity:.8}
+.lg-h{display:flex;gap:6px;font-size:12px;color:var(--title)}
+.lg-h span{margin-left:auto;color:var(--dim);font:11px Ubuntu,monospace}
+.lg code{display:block;font:11px/1.4 Ubuntu,monospace;color:var(--text);word-break:break-all;margin:2px 0}
+.lg-d{font-size:12px;color:var(--sub)}
+.proto{font:11px/1.55 Ubuntu,monospace;color:var(--sub);background:rgba(0,0,0,.25);border:1px solid var(--line);border-radius:8px;padding:6px 8px;margin:6px 0;white-space:pre-wrap}
+@media (max-width:700px){#side{width:100vw}#sideBtn{right:10px;top:auto;bottom:12px}#side:not(.collapsed) + #sideBtn{right:10px}}
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<div id="hud">
+  <b>表情模組測試</b>
+  <div class="keys">滑鼠 移動 · <kbd>空白</kbd> 分裂 · <kbd>`</kbd> 表情面板 · <kbd>1</kbd>~<kbd>0</kbd> 快捷表情 · 滾輪 縮放</div>
+  <div class="mode" id="modeLabel"></div>
+</div>
+<div id="toast"></div>
+
+<aside id="side">
+  <h2>模擬</h2>
+  <div class="row">
+    <button class="b primary" id="btnPanel">😎 表情面板</button>
+    <button class="b" id="btnSplit">✂ 分裂</button>
+    <button class="b" id="btnMerge">⊕ 合併</button>
+  </div>
+  <div class="row">
+    <button class="b" id="btnBot">讓路人發一個表情</button>
+    <button class="b" id="btnBotAll">全部路人一起發</button>
+  </div>
+  <label class="chk"><input type="checkbox" id="autoBots"> 路人自動隨機發表情</label>
+  <div class="ctl"><label for="myR">自己細胞大小</label><input type="range" id="myR" min="30" max="400" step="5"><output id="myRv"></output></div>
+  <div class="ctl"><label for="mode">畫法</label>
+    <select id="mode">
+      <option value="inline">A. 直接畫在遊戲畫布（Canvas2D）</option>
+      <option value="overlay">B. 疊一層透明畫布（WebGL）</option>
+    </select></div>
+  <div class="ctl"><label for="speed">播放速度</label>
+    <select id="speed">
+      <option value="1">1×（正常）</option><option value="0.5">0.5×</option><option value="0.25">0.25×（慢動作）</option><option value="0.1">0.1×</option>
+    </select></div>
+  <label class="chk"><input type="checkbox" id="follow" checked> 自己細胞跟著滑鼠移動</label>
+  <label class="chk"><input type="checkbox" id="showNames" checked> 顯示名字</label>
+  <label class="chk"><input type="checkbox" id="showMass" checked> 顯示質量</label>
+  <p class="note" id="modeNote"></p>
+
+  <h2>動畫參數 <small>自動記住</small></h2>
+  <div class="row">
+    <button class="b sm" id="presetNew">推薦預設</button>
+    <button class="b sm" id="presetOld">經典樣式</button>
+    <button class="b sm" id="btnCopy">複製設定 JSON</button>
+  </div>
+  <div id="tune"></div>
+  <textarea id="cfgOut" readonly hidden></textarea>
+
+  <h2>時間軸 <small>最後一個表情的播放位置</small></h2>
+  <canvas id="graph"></canvas>
+  <div class="legend"><span><i style="background:#7aa2ff"></i>大小</span><span><i style="background:#6ee7d8"></i>透明度</span><span><i style="background:#9aa6c8"></i>名字</span></div>
+
+  <h2>封包紀錄 <small><button class="b sm" id="btnClearLog">清除</button></small></h2>
+  <div class="proto">客戶端→伺服器  64 │ 表情字串 │ 00
+伺服器→客戶端  64 │ 細胞id(u32,LE) │ 表情字串 │ 00
+表情字串：'12'=內建 12.png、'imgur:xxxx'、前綴 'F:'=朝左</div>
+  <div id="log"></div>
+</aside>
+<button class="b" id="sideBtn" title="收合/展開面板">☰</button>
+
+<script src="emotes.js"></script>
+<script>
+'use strict';
+const $ = s => document.querySelector(s);
+const TUNE_KEY = 'emoteTune';
+
+// ───────────── 時間（可慢動作）─────────────
+let simTime = 0, timeScale = 1, lastFrame = performance.now();
+
+// ───────────── 畫布 / 鏡頭 ─────────────
+const cv = $('#game'), ctx = cv.getContext('2d');
+let W = 0, H = 0, DPR = 1, cssW = innerWidth, cssH = innerHeight;
+const ARENA = { w: 760, h: 470 };   // 地圖半寬/半高（世界單位），所有細胞都關在裡面
+const view = { x: 0, y: 0, zoom: 1 };
+const mouse = { x: innerWidth * 0.4, y: innerHeight * 0.45 };
+// 遊戲畫面只佔側邊欄左邊那塊（側邊欄收起來就全螢幕）
+function resize() {
+  const side = document.getElementById('side');
+  const sideW = side && !side.classList.contains('collapsed') && innerWidth >= 700 ? side.offsetWidth : 0;
+  DPR = Math.min(2, window.devicePixelRatio || 1);
+  cssW = innerWidth - sideW; cssH = innerHeight;
+  cv.style.width = cssW + 'px'; cv.style.height = cssH + 'px';
+  W = cv.width = Math.round(cssW * DPR);
+  H = cv.height = Math.round(cssH * DPR);
+}
+addEventListener('resize', resize);
+// 縮放 1× = 整個地圖剛好塞進畫面；放大後鏡頭才跟著自己細胞
+function scale() { return Math.min(W / (ARENA.w * 2 + 120), H / (ARENA.h * 2 + 120)) * view.zoom; }
+function toScreen(x, y) { const S = scale(); return [(x - view.x) * S + W / 2, (y - view.y) * S + H / 2]; }
+function mouseWorld() { const S = scale(); return { x: (mouse.x * DPR - W / 2) / S + view.x, y: (mouse.y * DPR - H / 2) / S + view.y }; }
+addEventListener('mousemove', e => { mouse.x = e.clientX; mouse.y = e.clientY; });
+cv.addEventListener('wheel', e => { e.preventDefault(); view.zoom = Math.max(0.25, Math.min(3, view.zoom * (e.deltaY > 0 ? 0.9 : 1.1))); }, { passive: false });
+
+// ───────────── 細胞 ─────────────
+let nextMineId = 1000;
+const mine = [], bots = [];
+const BOT_NAMES = ['小星', '路人甲', '布丁', '咕嚕', '阿凱', '喵喵', 'Tiger', '夜貓'];
+const BOT_COLORS = ['#ff6b6b', '#ffd93d', '#6bcb77', '#4d96ff', '#c77dff', '#ff9f1c', '#2ec4b6', '#f15bb5'];
+function mkCell(id, x, y, r, color, name, isMine) { return { id, x, y, r, color, name, mine: isMine, vx: 0, vy: 0, tx: x, ty: y, wait: 0, left: false }; }
+function resetCells() {
+  mine.length = 0; bots.length = 0;
+  mine.push(mkCell(nextMineId++, 0, 0, 110, '#7aa2ff', '我', true));
+  for (let i = 0; i < BOT_NAMES.length; i++) {
+    const a = i / BOT_NAMES.length * Math.PI * 2, d = 260 + Math.random() * 220;
+    bots.push(mkCell(i + 1, Math.cos(a) * d, Math.sin(a) * d, 50 + Math.random() * 90, BOT_COLORS[i], BOT_NAMES[i], false));
+  }
+}
+resetCells();
+const isMineId = id => mine.some(c => c.id === id);
+
+function split() {
+  const mw = mouseWorld();
+  for (const c of mine.slice()) {
+    if (mine.length >= 16) break;
+    if (c.r < 40) continue;
+    const nr = c.r / Math.SQRT2;
+    let dx = mw.x - c.x, dy = mw.y - c.y; const d = Math.hypot(dx, dy) || 1; dx /= d; dy /= d;
+    c.r = nr;
+    const n = mkCell(nextMineId++, c.x + dx * nr * 0.3, c.y + dy * nr * 0.3, nr, c.color, c.name, true);
+    n.vx = dx * nr * 9; n.vy = dy * nr * 9;
+    mine.push(n);
+  }
+}
+function merge() {
+  if (mine.length < 2) return;
+  let area = 0, x = 0, y = 0, big = mine[0];
+  for (const c of mine) { const a = c.r * c.r; area += a; x += c.x * a; y += c.y * a; if (c.r > big.r) big = c; }
+  big.x = x / area; big.y = y / area; big.r = Math.sqrt(area); big.vx = big.vy = 0;
+  mine.length = 0; mine.push(big);  // 留最大那顆的 id，表情不會斷
+}
+function clampArena(c) {
+  const mx = Math.max(0, ARENA.w - c.r), my = Math.max(0, ARENA.h - c.r);
+  c.x = Math.max(-mx, Math.min(mx, c.x)); c.y = Math.max(-my, Math.min(my, c.y));
+}
+function setMyTotalRadius(R) {
+  const each = R / Math.sqrt(mine.length);
+  for (const c of mine) c.r = each;
+}
+function myCenter() {
+  let area = 0, x = 0, y = 0;
+  for (const c of mine) { const a = c.r * c.r; area += a; x += c.x * a; y += c.y * a; }
+  return area ? { x: x / area, y: y / area } : { x: 0, y: 0 };
+}
+function totalRadius() { return Math.sqrt(mine.reduce((s, c) => s + c.r * c.r, 0)); }
+
+function update(dt) {
+  const mw = mouseWorld();
+  const decay = Math.exp(-6 * dt);
+  for (const c of mine) {
+    const dx = mw.x - c.x, dy = mw.y - c.y, d = Math.hypot(dx, dy);
+    const sp = 420 * Math.pow(c.r / 60, -0.45);
+    if (state.follow && d > 3) { const m = Math.min(d, sp * dt); c.x += dx / d * m; c.y += dy / d * m; }
+    c.x += c.vx * dt; c.y += c.vy * dt; c.vx *= decay; c.vy *= decay;
+  }
+  for (let i = 0; i < mine.length; i++) for (let j = i + 1; j < mine.length; j++) {
+    const a = mine[i], b = mine[j];
+    let dx = b.x - a.x, dy = b.y - a.y; const d = Math.hypot(dx, dy) || 0.01, min = a.r + b.r;
+    if (d < min) { const p = (min - d) / 2; dx /= d; dy /= d; a.x -= dx * p; a.y -= dy * p; b.x += dx * p; b.y += dy * p; }
+  }
+  for (const c of mine) clampArena(c);
+  for (const b of bots) {
+    b.wait -= dt;
+    if (b.wait <= 0) { b.tx = (Math.random() * 2 - 1) * ARENA.w; b.ty = (Math.random() * 2 - 1) * ARENA.h; b.wait = 2 + Math.random() * 4; }
+    const dx = b.tx - b.x, dy = b.ty - b.y, d = Math.hypot(dx, dy);
+    const sp = 180 * Math.pow(b.r / 60, -0.45);
+    if (d > 3) { const m = Math.min(d, sp * dt); b.x += dx / d * m; b.y += dy / d * m; if (Math.abs(dx) > 2) b.left = dx < 0; }
+    clampArena(b);
+  }
+  // 鏡頭跟著自己細胞的質心
+  let area = 0, sumX = 0, sumY = 0;
+  for (const c of mine) { const a = c.r * c.r; area += a; sumX += c.x * a; sumY += c.y * a; }
+  const follow = Math.max(0, Math.min(1, (view.zoom - 1) * 2));
+  if (area) { const k = 1 - Math.exp(-5 * dt); view.x += (sumX / area * follow - view.x) * k; view.y += (sumY / area * follow - view.y) * k; }
+}
+
+// ───────────── 表情模組 ─────────────
+const emotes = EmoteModule.create({
+  baseUrl: './emotes/',
+  now: () => simTime,
+  host: {
+    getMyCellIds: () => mine.map(c => c.id),
+    isMine: isMineId,
+    isFacingLeft: () => mouseWorld().x < myCenter().x,   // 實際客戶端：滑鼠在畫面左半
+    send: () => {},               // 實際客戶端：ws.send(bytes)。這裡改由下面的 'send' 事件模擬伺服器
+    canUseHotkeys: () => true,
+  },
+});
+emotes.preload();
+let lastShowAt = -1e9;
+emotes.on('show', () => { lastShowAt = simTime; });
+emotes.on('blocked', e => { if (e.reason === 'cooldown') toast('冷卻中（還要 ' + Math.ceil(e.waitMs) + 'ms）', true); });
+emotes.on('send', ev => {
+  log('out', '客戶端 → 伺服器', ev.bytes, '表情 "' + ev.str + '"' + (ev.flipped ? '（朝左）' : '') + ' · 本地已直接顯示在 ' + ev.cellIds.length + ' 顆細胞');
+  if (!ev.cellIds.length) return;
+  // 模擬伺服器：對發送者每顆細胞各轉發一包
+  const first = EmoteModule.protocol.encodeServer(ev.cellIds[0], ev.str);
+  log('in', '伺服器 → 其他玩家（' + ev.cellIds.length + ' 包，每顆細胞一包）', first, '細胞 #' + ev.cellIds[0] + (ev.cellIds.length > 1 ? ' …共 ' + ev.cellIds.length + ' 包' : ''));
+  // 如果伺服器也回傳給自己：模組會跳過自己的細胞，不會重播一次
+  const r = emotes.handleServerPacket(first);
+  if (r && !r.shown) logNote('skip', '如果伺服器也回傳給自己 → 細胞 #' + r.cellId + ' 是自己的，模組略過（不會重播）');
+});
+
+function botEmote(b) {
+  const all = emotes.list();
+  const id = all[Math.floor(Math.random() * all.length)];
+  const str = (b.left ? 'F:' : '') + id;
+  const bytes = EmoteModule.protocol.encodeServer(b.id, str);
+  const r = emotes.handleServerPacket(bytes);
+  log('in', '伺服器 → 客戶端', bytes, '細胞 #' + b.id + '（' + b.name + '）表情 "' + str + '"' + (r && r.shown ? '' : ' · 未顯示（表情字串不合法）'));
+}
+
+// ───────────── 畫面 ─────────────
+let overlay = null;
+const state = { mode: 'inline', showNames: true, showMass: true, follow: true };
+function shade(hex, k) {
+  const n = parseInt(hex.slice(1), 16);
+  const f = v => Math.max(0, Math.min(255, Math.round(v * k)));
+  return 'rgb(' + f(n >> 16 & 255) + ',' + f(n >> 8 & 255) + ',' + f(n & 255) + ')';
+}
+function drawText(text, x, y, size, alpha) {
+  if (alpha <= 0.01) return;
+  ctx.save();
+  ctx.globalAlpha *= alpha;
+  ctx.font = '700 ' + size + 'px Ubuntu, "Noto Sans TC", sans-serif';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.lineWidth = Math.max(2, size / 9); ctx.strokeStyle = '#000'; ctx.lineJoin = 'round';
+  ctx.strokeText(text, x, y); ctx.fillStyle = '#fff'; ctx.fillText(text, x, y);
+  ctx.restore();
+}
+function render() {
+  const S = scale();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.fillStyle = '#0a0f22'; ctx.fillRect(0, 0, W, H);
+  // 格線
+  const step = 50, x0 = view.x - W / 2 / S, x1 = view.x + W / 2 / S, y0 = view.y - H / 2 / S, y1 = view.y + H / 2 / S;
+  ctx.setTransform(S, 0, 0, S, W / 2 - view.x * S, H / 2 - view.y * S);
+  ctx.beginPath();
+  for (let x = Math.floor(x0 / step) * step; x <= x1; x += step) { ctx.moveTo(x, y0); ctx.lineTo(x, y1); }
+  for (let y = Math.floor(y0 / step) * step; y <= y1; y += step) { ctx.moveTo(x0, y); ctx.lineTo(x1, y); }
+  ctx.strokeStyle = 'rgba(148,168,255,.07)'; ctx.lineWidth = 1 / S; ctx.stroke();
+  ctx.strokeStyle = 'rgba(122,162,255,.35)'; ctx.lineWidth = 3 / S; ctx.strokeRect(-ARENA.w, -ARENA.h, ARENA.w * 2, ARENA.h * 2);
+
+  const cells = mine.concat(bots).sort((a, b) => a.r - b.r);
+  for (const c of cells) {
+    ctx.beginPath(); ctx.arc(c.x, c.y, c.r, 0, Math.PI * 2);
+    ctx.fillStyle = c.color; ctx.fill();
+    ctx.lineWidth = Math.max(2 / S, c.r * 0.06); ctx.strokeStyle = shade(c.color, 0.7); ctx.stroke();
+    // A 模式：畫完細胞本體就畫表情，名字乘上回傳的透明度
+    const na = state.mode === 'inline' ? emotes.drawOnCell(ctx, c.id, c.x, c.y, c.r, c.mine) : 1;
+    const nameSize = Math.max(c.r * 0.32, 12);
+    if (state.showNames) drawText(c.name, c.x, c.y, nameSize, na);
+    if (state.showMass) drawText(String(Math.floor(c.r * c.r / 100)), c.x, c.y + (state.showNames ? Math.max(c.r / 4.5, nameSize / 1.5) : 0), nameSize / 2, na);
+  }
+  // B 模式：細胞畫完之後，模組在上面另一張畫布畫表情（座標換成螢幕像素）
+  if (overlay) {
+    const list = [];
+    for (const c of cells) { const [sx, sy] = toScreen(c.x, c.y); list.push({ id: c.id, x: sx, y: sy, r: c.r * S, isMine: c.mine }); }
+    overlay.draw(list);
+  }
+}
+
+// ───────────── 時間軸圖 ─────────────
+const gcv = $('#graph'), gctx = gcv.getContext('2d');
+function drawGraph() {
+  const r = gcv.getBoundingClientRect();
+  const w = Math.round(r.width * DPR), h = Math.round(r.height * DPR);
+  if (!w || !h) return;
+  if (gcv.width !== w || gcv.height !== h) { gcv.width = w; gcv.height = h; }
+  const a = emotes.anim, pop = +a.popMs, hold = +a.holdMs, fade = +a.fadeMs, total = pop + hold + fade;
+  const g = gctx;
+  g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, w, h);
+  const pad = 8 * DPR, top = 14 * DPR, bot = h - 16 * DPR;
+  const yMax = Math.max(1.4, (+a.overshoot || 1) + 0.1);
+  // x 軸分段：彈出段放大到 40% 寬，比較好看曲線
+  const wp = pop ? 0.4 : 0, wf = fade ? 0.25 : 0, wh = 1 - wp - wf;
+  const X = t => {
+    let f;
+    if (t <= pop) f = pop ? t / pop * wp : 0;
+    else if (t <= pop + hold) f = wp + (hold ? (t - pop) / hold * wh : 0);
+    else f = wp + wh + (fade ? (t - pop - hold) / fade * wf : 0);
+    return pad + f * (w - pad * 2);
+  };
+  const Y = v => bot - v / yMax * (bot - top);
+  g.font = (10 * DPR) + 'px Ubuntu, sans-serif'; g.textBaseline = 'top';
+  g.strokeStyle = 'rgba(148,168,255,.16)'; g.lineWidth = DPR;
+  g.beginPath(); g.moveTo(pad, Y(1)); g.lineTo(w - pad, Y(1)); g.moveTo(pad, Y(0)); g.lineTo(w - pad, Y(0)); g.stroke();
+  g.fillStyle = '#5f6b8f';
+  g.fillText('1.0', pad + 2, Y(1) - 12 * DPR);
+  const marks = [[0, '彈出 ' + pop + 'ms'], [pop, '停留 ' + hold + 'ms'], [pop + hold, '淡出 ' + fade + 'ms']];
+  for (const [t, label] of marks) { const x = X(t); g.fillRect(x, top - 10 * DPR, DPR, bot - top + 10 * DPR); g.fillText(label, x + 3 * DPR, 2 * DPR); }
+  const N = 260;
+  const line = (key, color, dash) => {
+    g.beginPath(); g.setLineDash(dash || []); g.strokeStyle = color; g.lineWidth = 1.6 * DPR;
+    for (let i = 0; i <= N; i++) {
+      const f = i / N; let t;
+      if (f <= wp) t = wp ? f / wp * pop : 0; else if (f <= wp + wh) t = pop + (wh ? (f - wp) / wh * hold : 0); else t = pop + hold + (wf ? (f - wp - wh) / wf * fade : 0);
+      const s = EmoteModule.sample(Math.min(t, total - 0.001), a) || { scale: 1, alpha: 0, name: 1 };
+      const x = X(t), y = Y(s[key]);
+      i ? g.lineTo(x, y) : g.moveTo(x, y);
+    }
+    g.stroke(); g.setLineDash([]);
+  };
+  line('name', '#9aa6c8', [4 * DPR, 3 * DPR]);
+  line('alpha', '#6ee7d8');
+  line('scale', '#7aa2ff');
+  const el = simTime - lastShowAt;
+  if (el >= 0 && el < total) {
+    const x = X(el); g.fillStyle = '#b48cff'; g.fillRect(x - DPR, top - 4 * DPR, 2 * DPR, bot - top + 4 * DPR);
+  }
+  g.fillStyle = '#5f6b8f'; g.textAlign = 'right'; g.fillText('總長 ' + total + 'ms', w - pad, bot + 3 * DPR); g.textAlign = 'left';
+}
+
+// ───────────── 參數面板 ─────────────
+const TUNE = [
+  { k: 'popMs', label: '彈出時間', min: 0, max: 800, step: 10, unit: 'ms' },
+  { k: 'holdMs', label: '停留時間', min: 0, max: 5000, step: 50, unit: 'ms' },
+  { k: 'fadeMs', label: '淡出時間', min: 0, max: 1500, step: 10, unit: 'ms' },
+  { k: 'curve', label: '彈出曲線', type: 'select', options: [['classic', '經典（sin + 收回）'], ['smooth', '平滑回彈'], ['linear', '直線放大（不回彈）'], ['none', '不縮放，只淡入']] },
+  { k: 'overshoot', label: '彈出最大倍率', min: 1, max: 2, step: 0.05, unit: '×' },
+  { k: 'size', label: '表情大小', min: 0.3, max: 2.5, step: 0.05, unit: '×' },
+  { k: 'fit', label: '圖片填法', type: 'select', options: [['cover', '填滿圓形（裁掉多的）'], ['contain', '完整顯示（可能留邊）'], ['stretch', '拉伸成正方形']] },
+  { k: 'clip', label: '裁成圓形', type: 'check' },
+  { k: 'flip', label: '朝左時左右翻轉', type: 'check' },
+  { k: 'flipMineLive', label: '自己細胞跟著滑鼠即時翻轉', type: 'check' },
+  { k: 'fadeName', label: '表情出現時名字淡出', type: 'check' },
+  { k: 'shrinkOnFade', label: '消失時一起縮小', type: 'check' },
+  { k: 'stack', label: '連發時疊加；關 = 新的取代舊的', type: 'check' },
+];
+const tuneEl = $('#tune');
+const ctlRefs = {};
+function fmt(v, unit) { return (unit === '×' ? (+v).toFixed(2) : v) + unit; }
+for (const d of TUNE) {
+  if (d.type === 'check') {
+    const lab = document.createElement('label'); lab.className = 'chk';
+    const inp = document.createElement('input'); inp.type = 'checkbox';
+    inp.onchange = () => { emotes.setAnim({ [d.k]: inp.checked }); saveTune(); };
+    lab.append(inp, ' ' + d.label); tuneEl.appendChild(lab);
+    ctlRefs[d.k] = { set: v => { inp.checked = !!v; } };
+  } else if (d.type === 'select') {
+    const row = document.createElement('div'); row.className = 'ctl';
+    const lab = document.createElement('label'); lab.textContent = d.label;
+    const sel = document.createElement('select');
+    for (const [v, t] of d.options) { const o = document.createElement('option'); o.value = v; o.textContent = t; sel.appendChild(o); }
+    sel.onchange = () => { emotes.setAnim({ [d.k]: sel.value }); saveTune(); sel.blur(); };
+    row.append(lab, sel); tuneEl.appendChild(row);
+    ctlRefs[d.k] = { set: v => { sel.value = v; } };
+  } else {
+    const row = document.createElement('div'); row.className = 'ctl';
+    const lab = document.createElement('label'); lab.textContent = d.label;
+    const inp = document.createElement('input'); inp.type = 'range'; inp.min = d.min; inp.max = d.max; inp.step = d.step;
+    const out = document.createElement('output');
+    inp.oninput = () => { emotes.setAnim({ [d.k]: +inp.value }); out.textContent = fmt(inp.value, d.unit); saveTune(); };
+    row.append(lab, inp, out); tuneEl.appendChild(row);
+    ctlRefs[d.k] = { set: v => { inp.value = v; out.textContent = fmt(v, d.unit); } };
+  }
+}
+// 冷卻（模組設定，不是動畫）
+let cooldownMs = 500;
+{
+  const row = document.createElement('div'); row.className = 'ctl';
+  const lab = document.createElement('label'); lab.textContent = '發送冷卻';
+  const inp = document.createElement('input'); inp.type = 'range'; inp.min = 0; inp.max = 3000; inp.step = 50;
+  const out = document.createElement('output');
+  inp.oninput = () => { cooldownMs = +inp.value; emotes.setCooldown(cooldownMs); out.textContent = cooldownMs + 'ms'; saveTune(); };
+  row.append(lab, inp, out); tuneEl.appendChild(row);
+  ctlRefs.cooldownMs = { set: v => { inp.value = v; out.textContent = v + 'ms'; } };
+}
+function applyTune(anim, cd) {
+  emotes.setAnim(anim);
+  for (const k in emotes.anim) if (ctlRefs[k]) ctlRefs[k].set(emotes.anim[k]);
+  if (cd != null) { cooldownMs = cd; emotes.setCooldown(cd); ctlRefs.cooldownMs.set(cd); }
+}
+function saveTune() {
+  try { localStorage.setItem(TUNE_KEY, JSON.stringify({ anim: emotes.anim, cooldownMs, mode: state.mode, showNames: state.showNames, showMass: state.showMass })); } catch (e) {}
+  if (!$('#cfgOut').hidden) $('#cfgOut').value = configJson();
+}
+function configJson() { return JSON.stringify({ anim: emotes.anim, cooldownMs }, null, 2); }
+$('#presetNew').onclick = () => { applyTune(EmoteModule.DEFAULT_ANIM, 500); saveTune(); toast('已套用推薦預設'); };
+$('#presetOld').onclick = () => { applyTune(EmoteModule.LEGACY_ANIM, 500); saveTune(); toast('已套用經典樣式'); };
+$('#btnCopy').onclick = () => {
+  const ta = $('#cfgOut'); ta.hidden = false; ta.value = configJson(); ta.select();
+  const done = () => toast('設定已複製');
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(ta.value).then(done, () => { document.execCommand('copy'); done(); });
+  else { document.execCommand('copy'); done(); }
+};
+
+// ───────────── 模擬面板 ─────────────
+function setMode(m) {
+  state.mode = m; $('#mode').value = m;
+  if (m === 'overlay' && !overlay) overlay = emotes.createOverlay(cv);
+  if (m !== 'overlay' && overlay) { overlay.destroy(); overlay = null; }
+  $('#modeLabel').textContent = m === 'overlay' ? '畫法 B：疊一層透明畫布' : '畫法 A：直接畫在遊戲畫布';
+  $('#modeNote').textContent = m === 'overlay'
+    ? 'B：細胞和名字照宿主原本的畫，模組在上面另一張透明畫布畫表情。名字不會淡出（宿主改不到），而是被表情蓋住；表情一律在所有細胞上面。'
+    : 'A：宿主每畫完一顆細胞就呼叫 drawOnCell()，表情跟細胞同一層、會被更大的細胞蓋住，名字會跟著淡出。';
+}
+$('#mode').onchange = e => { setMode(e.target.value); saveTune(); e.target.blur(); };
+$('#speed').onchange = e => { timeScale = +e.target.value; e.target.blur(); toast('播放速度 ' + timeScale + '×'); };
+$('#follow').onchange = e => { state.follow = e.target.checked; };
+$('#showNames').onchange = e => { state.showNames = e.target.checked; saveTune(); };
+$('#showMass').onchange = e => { state.showMass = e.target.checked; saveTune(); };
+$('#btnPanel').onclick = () => emotes.toggle();
+$('#btnSplit').onclick = () => { split(); syncMyR(); };
+$('#btnMerge').onclick = () => { merge(); syncMyR(); };
+$('#btnBot').onclick = () => botEmote(bots[Math.floor(Math.random() * bots.length)]);
+$('#btnBotAll').onclick = () => bots.forEach(botEmote);
+const myR = $('#myR');
+function syncMyR() { const R = Math.round(totalRadius()); myR.value = R; $('#myRv').textContent = R; }
+myR.oninput = () => { setMyTotalRadius(+myR.value); $('#myRv').textContent = myR.value; };
+syncMyR();
+let autoBots = false, autoTimer = 1;
+$('#autoBots').onchange = e => { autoBots = e.target.checked; };
+$('#sideBtn').onclick = () => { $('#side').classList.toggle('collapsed'); resize(); };
+if (innerWidth < 700) $('#side').classList.add('collapsed');
+resize();
+// 點完按鈕/勾選框就放掉焦點，不然空白鍵會再按一次
+$('#side').addEventListener('click', e => { if (e.target.matches('button, input[type=checkbox]')) e.target.blur(); });
+addEventListener('keydown', e => {
+  if (e.code !== 'Space' || e.repeat) return;
+  const el = document.activeElement;
+  if (el && (el.tagName === 'TEXTAREA' || (el.tagName === 'INPUT' && el.type === 'text'))) return;
+  e.preventDefault(); split(); syncMyR();
+});
+
+// ───────────── 紀錄 / 提示 ─────────────
+const logEl = $('#log');
+function stamp() { const d = new Date(); return d.toTimeString().slice(0, 8) + '.' + String(d.getMilliseconds()).padStart(3, '0'); }
+function pushLog(div) { logEl.prepend(div); while (logEl.children.length > 30) logEl.lastChild.remove(); }
+function log(kind, title, bytes, desc) {
+  const div = document.createElement('div'); div.className = 'lg ' + kind;
+  const h = document.createElement('div'); h.className = 'lg-h'; h.textContent = title;
+  const t = document.createElement('span'); t.textContent = stamp() + ' · ' + bytes.length + 'B'; h.appendChild(t);
+  const code = document.createElement('code'); code.textContent = EmoteModule.protocol.hex(bytes);
+  const d = document.createElement('div'); d.className = 'lg-d'; d.textContent = desc;
+  div.append(h, code, d); pushLog(div);
+}
+function logNote(kind, text) { const div = document.createElement('div'); div.className = 'lg ' + kind; div.innerHTML = '<div class="lg-d"></div>'; div.firstChild.textContent = text; pushLog(div); }
+$('#btnClearLog').onclick = () => { logEl.textContent = ''; };
+let toastTimer = 0;
+function toast(text, warn) {
+  const t = $('#toast'); t.textContent = text; t.className = 'on' + (warn ? ' warn' : '');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.className = ''; }, 1200);
+}
+
+// ───────────── 讀回上次的設定 ─────────────
+let saved = null;
+try { saved = JSON.parse(localStorage.getItem(TUNE_KEY) || 'null'); } catch (e) {}
+applyTune(saved && saved.anim ? saved.anim : EmoteModule.DEFAULT_ANIM, saved && saved.cooldownMs != null ? saved.cooldownMs : 500);
+if (saved) {
+  if (saved.showNames === false) { state.showNames = false; $('#showNames').checked = false; }
+  if (saved.showMass === false) { state.showMass = false; $('#showMass').checked = false; }
+}
+setMode(saved && saved.mode === 'overlay' ? 'overlay' : 'inline');
+
+// ───────────── 主迴圈 ─────────────
+function frame(t) {
+  const dtReal = Math.min(100, t - lastFrame); lastFrame = t;
+  const dt = dtReal * timeScale; simTime += dt;
+  update(dt / 1000);
+  if (autoBots) { autoTimer -= dt / 1000; if (autoTimer <= 0) { autoTimer = 0.7 + Math.random() * 2; botEmote(bots[Math.floor(Math.random() * bots.length)]); } }
+  render();
+  drawGraph();
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+window.__emotes = emotes; // 給 console 玩：__emotes.send('5')、__emotes.anim …
+</script>
+</body>
+</html>
